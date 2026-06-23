@@ -243,20 +243,50 @@ export default function ViewerApp() {
   return (
     <div className="min-h-screen bg-[#111318] text-slate-100 font-sans pb-20">
       <div className="bg-[#181a20] border-b border-slate-800 sticky top-0 z-50 shadow-md">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center space-x-3">
             <Activity className="w-6 h-6 text-orange-500" />
             <h1 className="text-xl font-bold text-slate-100 tracking-tight">Challengers Viewer <span className="text-orange-500 text-sm bg-orange-500/10 px-2 py-0.5 rounded-full ml-1">PRO</span></h1>
           </div>
           {jsonData.length > 1 && (
-            <div className="flex-1 max-w-xl w-full flex items-center space-x-4 px-4">
-              <span className="text-xs text-slate-400 whitespace-nowrap">{jsonData[0].targetDate}</span>
-              <input 
-                type="range" min="0" max={jsonData.length - 1} value={currentIndex}
-                onChange={(e) => setCurrentIndex(Number(e.target.value))}
-                className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500"
-              />
-              <span className="text-xs text-slate-400 whitespace-nowrap">{jsonData[jsonData.length - 1].targetDate}</span>
+            <div className="flex-1 max-w-2xl w-full flex flex-col sm:flex-row items-center gap-3 px-4">
+              {/* 날짜 직접 입력 영역 (키보드 지원) */}
+              <div className="flex items-center space-x-2 bg-slate-800/50 px-2 py-1 rounded-lg border border-slate-700 w-full sm:w-auto shrink-0">
+                <Calendar className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                <input 
+                  type="date" 
+                  value={jsonData[currentIndex].targetDate}
+                  min={jsonData[0].targetDate}
+                  max={jsonData[jsonData.length - 1].targetDate}
+                  onChange={(e) => {
+                    if(!e.target.value) return; // 미입력 시 무시
+                    const selectedTime = new Date(e.target.value).getTime();
+                    let closestIdx = 0;
+                    let minDiff = Infinity;
+                    // 선택/입력한 날짜와 가장 가까운 데이터 인덱스 찾기
+                    jsonData.forEach((d, i) => {
+                      const diff = Math.abs(new Date(d.targetDate).getTime() - selectedTime);
+                      if (diff < minDiff) { 
+                        minDiff = diff; 
+                        closestIdx = i; 
+                      }
+                    });
+                    setCurrentIndex(closestIdx);
+                  }}
+                  className="bg-transparent text-orange-400 font-bold text-sm focus:outline-none [color-scheme:dark] cursor-pointer w-full"
+                />
+              </div>
+
+              {/* 기존 슬라이더 영역 */}
+              <div className="flex-1 w-full flex items-center space-x-3">
+                <span className="text-xs text-slate-500 whitespace-nowrap">{jsonData[0].targetDate.slice(5)}</span>
+                <input 
+                  type="range" min="0" max={jsonData.length - 1} value={currentIndex}
+                  onChange={(e) => setCurrentIndex(Number(e.target.value))}
+                  className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                />
+                <span className="text-xs text-slate-500 whitespace-nowrap">{jsonData[jsonData.length - 1].targetDate.slice(5)}</span>
+              </div>
             </div>
           )}
           <button onClick={() => setJsonData(null)} className="text-sm text-slate-400 hover:text-white transition-colors bg-slate-800 px-3 py-1.5 rounded-lg whitespace-nowrap">
