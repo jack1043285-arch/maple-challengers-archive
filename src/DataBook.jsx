@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Save, Calendar, Play, Clock, AlertCircle, CheckCircle, Search, Settings, Database, Terminal } from 'lucide-react';
 
-// 어제 날짜 구하기 (KST 기준)
+// 어제 날짜 구하기 (KST 기준 - 확정 데이터용)
 const getYesterdayString = () => {
   const now = new Date();
   const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
@@ -10,13 +10,22 @@ const getYesterdayString = () => {
   return kstTime.toISOString().split('T')[0];
 };
 
+// 오늘 날짜 구하기 (KST 기준 - 실시간 최신 스냅샷 데이터용)
+const getTodayString = () => {
+  const now = new Date();
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const kstTime = new Date(utc + (9 * 3600000));
+  return kstTime.toISOString().split('T')[0];
+};
+
 export default function DataBookApp() {
   const [apiKey, setApiKey] = useState('');
   const [characterName, setCharacterName] = useState('');
   
-  const [singleDate, setSingleDate] = useState(getYesterdayString());
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState(getYesterdayString());
+  // 기본값을 '오늘'로 설정하여 유저가 자연스럽게 실시간 데이터를 수집하도록 유도
+  const [singleDate, setSingleDate] = useState(getTodayString());
+  const [startDate, setStartDate] = useState(getYesterdayString());
+  const [endDate, setEndDate] = useState(getTodayString());
   const [delaySeconds, setDelaySeconds] = useState(15);
 
   const [isRunning, setIsRunning] = useState(false);
@@ -51,46 +60,51 @@ export default function DataBookApp() {
   const fetchCharacterData = async (ocid, dateStr) => {
     const headers = { 'x-nxopen-api-key': apiKey };
     
+    // 핵심 로직: 현재 긁으려는 날짜가 '오늘'인지 판별
+    const isToday = dateStr === getTodayString();
+    // '오늘'이면 date 파라미터를 생략하여 실시간 스냅샷을 가져오고, '과거'면 일자를 지정함
+    const dateParam = isToday ? '' : `&date=${dateStr}`;
+    
     try {
       // 1. 기본 정보 먼저 조회 (월드 및 직업, 길드 파악용)
-      const basicRes = await fetch(`https://open.api.nexon.com/maplestory/v1/character/basic?ocid=${ocid}&date=${dateStr}`, { headers });
+      const basicRes = await fetch(`https://open.api.nexon.com/maplestory/v1/character/basic?ocid=${ocid}${dateParam}`, { headers });
       if (!basicRes.ok) throw new Error(`기본 정보 조회 실패 (${dateStr})`);
       const basicData = await basicRes.json();
 
       // 2. 확장된 최신 API 엔드포인트 목록
       const endpoints = {
-        stats: `/maplestory/v1/character/stat?ocid=${ocid}&date=${dateStr}`,
-        equipment: `/maplestory/v1/character/item-equipment?ocid=${ocid}&date=${dateStr}`,
-        cashEquipment: `/maplestory/v1/character/cashitem-equipment?ocid=${ocid}&date=${dateStr}`,
-        symbols: `/maplestory/v1/character/symbol-equipment?ocid=${ocid}&date=${dateStr}`,
-        hexa: `/maplestory/v1/character/hexamatrix?ocid=${ocid}&date=${dateStr}`,
-        hexaStat: `/maplestory/v1/character/hexamatrix-stat?ocid=${ocid}&date=${dateStr}`,
-        dojang: `/maplestory/v1/character/dojang?ocid=${ocid}&date=${dateStr}`,
-        popularity: `/maplestory/v1/character/popularity?ocid=${ocid}&date=${dateStr}`,
-        rankingOverall: `/maplestory/v1/ranking/overall?ocid=${ocid}&date=${dateStr}`,
-        rankingUnion: `/maplestory/v1/ranking/union?ocid=${ocid}&date=${dateStr}`,
-        rankingDojang: `/maplestory/v1/ranking/dojang?ocid=${ocid}&date=${dateStr}`,
-        rankingTheSeed: `/maplestory/v1/ranking/theseed?ocid=${ocid}&date=${dateStr}`,
-        rankingAchievement: `/maplestory/v1/ranking/achievement?ocid=${ocid}&date=${dateStr}`,
-        hyperStat: `/maplestory/v1/character/hyper-stat?ocid=${ocid}&date=${dateStr}`,
-        ability: `/maplestory/v1/character/ability?ocid=${ocid}&date=${dateStr}`,
-        vmatrix: `/maplestory/v1/character/vmatrix?ocid=${ocid}&date=${dateStr}`,
-        linkSkill: `/maplestory/v1/character/link-skill?ocid=${ocid}&date=${dateStr}`,
-        android: `/maplestory/v1/character/android-equipment?ocid=${ocid}&date=${dateStr}`,
-        pet: `/maplestory/v1/character/pet-equipment?ocid=${ocid}&date=${dateStr}`,
-        propensity: `/maplestory/v1/character/propensity?ocid=${ocid}&date=${dateStr}`,
-        setEffect: `/maplestory/v1/character/set-effect?ocid=${ocid}&date=${dateStr}`,
-        beauty: `/maplestory/v1/character/beauty-equipment?ocid=${ocid}&date=${dateStr}`,
-        userAchievement: `/maplestory/v1/user/achievement?ocid=${ocid}&date=${dateStr}`,
-        otherStat: `/maplestory/v1/character/other-stat?ocid=${ocid}&date=${dateStr}`,
-        ringExchange: `/maplestory/v1/character/ring-exchange-skill-equipment?ocid=${ocid}&date=${dateStr}`,
-        ringReserve: `/maplestory/v1/character/ring-reserve-skill-equipment?ocid=${ocid}&date=${dateStr}`,
-        union: `/maplestory/v1/user/union?ocid=${ocid}&date=${dateStr}`,
-        unionRaider: `/maplestory/v1/user/union-raider?ocid=${ocid}&date=${dateStr}`,
-        // 확률형 로그 (계정 단위 파라미터 적용)
-        historyCube: `/maplestory/v1/history/cube?count=1000&date=${dateStr}`,
-        historyStarforce: `/maplestory/v1/history/starforce?count=1000&date=${dateStr}`,
-        historyPotential: `/maplestory/v1/history/potential?count=1000&date=${dateStr}`
+        stats: `/maplestory/v1/character/stat?ocid=${ocid}${dateParam}`,
+        equipment: `/maplestory/v1/character/item-equipment?ocid=${ocid}${dateParam}`,
+        cashEquipment: `/maplestory/v1/character/cashitem-equipment?ocid=${ocid}${dateParam}`,
+        symbols: `/maplestory/v1/character/symbol-equipment?ocid=${ocid}${dateParam}`,
+        hexa: `/maplestory/v1/character/hexamatrix?ocid=${ocid}${dateParam}`,
+        hexaStat: `/maplestory/v1/character/hexamatrix-stat?ocid=${ocid}${dateParam}`,
+        dojang: `/maplestory/v1/character/dojang?ocid=${ocid}${dateParam}`,
+        popularity: `/maplestory/v1/character/popularity?ocid=${ocid}${dateParam}`,
+        rankingOverall: `/maplestory/v1/ranking/overall?ocid=${ocid}${dateParam}`,
+        rankingUnion: `/maplestory/v1/ranking/union?ocid=${ocid}${dateParam}`,
+        rankingDojang: `/maplestory/v1/ranking/dojang?ocid=${ocid}${dateParam}`,
+        rankingTheSeed: `/maplestory/v1/ranking/theseed?ocid=${ocid}${dateParam}`,
+        rankingAchievement: `/maplestory/v1/ranking/achievement?ocid=${ocid}${dateParam}`,
+        hyperStat: `/maplestory/v1/character/hyper-stat?ocid=${ocid}${dateParam}`,
+        ability: `/maplestory/v1/character/ability?ocid=${ocid}${dateParam}`,
+        vmatrix: `/maplestory/v1/character/vmatrix?ocid=${ocid}${dateParam}`,
+        linkSkill: `/maplestory/v1/character/link-skill?ocid=${ocid}${dateParam}`,
+        android: `/maplestory/v1/character/android-equipment?ocid=${ocid}${dateParam}`,
+        pet: `/maplestory/v1/character/pet-equipment?ocid=${ocid}${dateParam}`,
+        propensity: `/maplestory/v1/character/propensity?ocid=${ocid}${dateParam}`,
+        setEffect: `/maplestory/v1/character/set-effect?ocid=${ocid}${dateParam}`,
+        beauty: `/maplestory/v1/character/beauty-equipment?ocid=${ocid}${dateParam}`,
+        userAchievement: `/maplestory/v1/user/achievement?ocid=${ocid}${dateParam}`,
+        otherStat: `/maplestory/v1/character/other-stat?ocid=${ocid}${dateParam}`,
+        ringExchange: `/maplestory/v1/character/ring-exchange-skill-equipment?ocid=${ocid}${dateParam}`,
+        ringReserve: `/maplestory/v1/character/ring-reserve-skill-equipment?ocid=${ocid}${dateParam}`,
+        union: `/maplestory/v1/user/union?ocid=${ocid}${dateParam}`,
+        unionRaider: `/maplestory/v1/user/union-raider?ocid=${ocid}${dateParam}`,
+        // 확률형 로그 (계정 단위 파라미터 적용) - 오늘일 경우 최신 1000건을 긁어옴
+        historyCube: `/maplestory/v1/history/cube?count=1000${dateParam}`,
+        historyStarforce: `/maplestory/v1/history/starforce?count=1000${dateParam}`,
+        historyPotential: `/maplestory/v1/history/potential?count=1000${dateParam}`
       };
 
       const fetchPromises = Object.entries(endpoints).map(async ([endpointKey, path]) => {
@@ -105,7 +119,7 @@ export default function DataBookApp() {
       const skillGrades = ["0", "1", "2", "3", "4", "5", "6", "hyper"];
       const skillPromises = skillGrades.map(async (grade) => {
         try {
-          const res = await fetch(`https://open.api.nexon.com/maplestory/v1/character/skill?ocid=${ocid}&date=${dateStr}&character_skill_grade=${grade}`, { headers });
+          const res = await fetch(`https://open.api.nexon.com/maplestory/v1/character/skill?ocid=${ocid}&character_skill_grade=${grade}${dateParam}`, { headers });
           return { grade, data: res.ok ? await res.json() : null };
         } catch { return { grade, data: null }; }
       });
@@ -119,7 +133,7 @@ export default function DataBookApp() {
           const gIdRes = await fetch(`https://open.api.nexon.com/maplestory/v1/guild/id?guild_name=${gName}&world_name=${wName}`, { headers });
           if (gIdRes.ok) {
             const { oguild_id } = await gIdRes.json();
-            const gBasicRes = await fetch(`https://open.api.nexon.com/maplestory/v1/guild/basic?oguild_id=${oguild_id}&date=${dateStr}`, { headers });
+            const gBasicRes = await fetch(`https://open.api.nexon.com/maplestory/v1/guild/basic?oguild_id=${oguild_id}${dateParam}`, { headers });
             if (gBasicRes.ok) guildData = await gBasicRes.json();
           }
         } catch(e) {}
@@ -128,7 +142,8 @@ export default function DataBookApp() {
       const results = await Promise.all(fetchPromises);
       const skillResults = await Promise.all(skillPromises);
       
-      const compiledData = { basic: basicData, targetDate: dateStr, savedAt: new Date().toISOString() };
+      // JSON 객체 조립: 실시간이든 과거든 뷰어 타임라인 정렬을 위해 대상 날짜(dateStr)를 명표로 붙임
+      const compiledData = { basic: basicData, targetDate: dateStr, isRealTime: isToday, savedAt: new Date().toISOString() };
       results.forEach(({key, data}) => { compiledData[key] = data; });
       
       compiledData.skills = {};
@@ -178,7 +193,7 @@ export default function DataBookApp() {
       const data = await fetchCharacterData(ocid, singleDate);
       if (data) {
         addLog(`수집 성공! JSON 파일을 생성합니다.`, 'success');
-        triggerDownload(data, `메이플_데이터북_${characterName}_${singleDate}.json`);
+        triggerDownload(data, `메이플_데이터북_${characterName}_${singleDate}${singleDate === getTodayString() ? '_실시간' : ''}.json`);
       }
     }
     setIsRunning(false);
@@ -203,7 +218,12 @@ export default function DataBookApp() {
     for (let i = 0; i < dates.length; i++) {
       const targetDate = dates[i];
       setProgress({ current: i + 1, total: dates.length, currentStr: targetDate });
-      addLog(`[${i + 1}/${dates.length}] ${targetDate} 데이터 수집 중...`);
+      
+      if (targetDate === getTodayString()) {
+        addLog(`[${i + 1}/${dates.length}] ${targetDate} (오늘/실시간) 데이터 수집 중...`, 'info');
+      } else {
+        addLog(`[${i + 1}/${dates.length}] ${targetDate} 과거 확정 데이터 수집 중...`);
+      }
       
       const data = await fetchCharacterData(ocid, targetDate);
       if (data) combinedData.push(data);
@@ -219,6 +239,8 @@ export default function DataBookApp() {
     setIsRunning(false);
     setProgress({ current: 0, total: 0, currentStr: '' });
   };
+
+  const showRealTimeWarning = singleDate === getTodayString() || endDate === getTodayString();
 
   return (
     <div className="min-h-screen bg-[#111318] text-slate-100 font-sans pb-20 p-6">
@@ -255,7 +277,7 @@ export default function DataBookApp() {
             <div className="bg-slate-800/30 p-5 rounded-xl border border-slate-700/50 space-y-4">
               <h3 className="font-semibold text-slate-200 flex items-center"><Search className="w-4 h-4 mr-2 text-blue-400"/> 모드 1: 단일 날짜 백업</h3>
               <div className="flex gap-2">
-                <input type="date" value={singleDate} max={getYesterdayString()} onChange={e => setSingleDate(e.target.value)} disabled={isRunning}
+                <input type="date" value={singleDate} max={getTodayString()} onChange={e => setSingleDate(e.target.value)} disabled={isRunning}
                   className="flex-1 bg-[#111318] border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 custom-calendar-icon" />
                 <button onClick={handleSingleCollect} disabled={isRunning} className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-bold transition-colors whitespace-nowrap">조회하기</button>
               </div>
@@ -267,11 +289,11 @@ export default function DataBookApp() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <span className="text-[10px] text-slate-400">시작일</span>
-                  <input type="date" value={startDate} max={getYesterdayString()} onChange={e => setStartDate(e.target.value)} disabled={isRunning} className="w-full bg-[#111318] border border-slate-700 rounded-lg px-2 py-2 text-xs text-slate-300 custom-calendar-icon" />
+                  <input type="date" value={startDate} max={getTodayString()} onChange={e => setStartDate(e.target.value)} disabled={isRunning} className="w-full bg-[#111318] border border-slate-700 rounded-lg px-2 py-2 text-xs text-slate-300 custom-calendar-icon" />
                 </div>
                 <div className="space-y-1">
                   <span className="text-[10px] text-slate-400">종료일</span>
-                  <input type="date" value={endDate} max={getYesterdayString()} onChange={e => setEndDate(e.target.value)} disabled={isRunning} className="w-full bg-[#111318] border border-slate-700 rounded-lg px-2 py-2 text-xs text-slate-300 custom-calendar-icon" />
+                  <input type="date" value={endDate} max={getTodayString()} onChange={e => setEndDate(e.target.value)} disabled={isRunning} className="w-full bg-[#111318] border border-slate-700 rounded-lg px-2 py-2 text-xs text-slate-300 custom-calendar-icon" />
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -287,6 +309,20 @@ export default function DataBookApp() {
             </div>
           </div>
         </div>
+
+        {/* 실시간 수집 경고 안내문 */}
+        {showRealTimeWarning && (
+          <div className="bg-blue-900/20 border border-blue-500/30 p-5 rounded-xl flex items-start text-sm text-blue-300 shadow-md">
+            <AlertCircle className="w-5 h-5 mr-3 shrink-0 text-blue-400 mt-0.5" />
+            <div>
+              <strong className="text-blue-200 block mb-1">오늘 날짜를 포함하여 실시간 데이터를 수집합니다!</strong>
+              <p className="text-xs leading-relaxed opacity-90">
+                오늘(당일) 날짜의 데이터는 새벽 2시에 갱신되는 과거 확정본이 아닌 <strong className="text-white">현재 인게임 스냅샷(실시간 스펙)</strong>을 가져옵니다.<br/>
+                따라서 완벽한 최신 상태를 반영하려면 수집 버튼을 누르기 전, 반드시 게임에 접속하여 <strong className="text-white bg-blue-900/50 px-1 rounded">로그아웃, 캐릭터 선택창 이동, 캐시샵 방문 중 하나를 1회 진행</strong>하여 넥슨 서버에 캐릭터 정보를 갱신해 주세요!
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* 진행 상황 및 콘솔 로그 */}
         <div className="bg-[#181a20] rounded-2xl border border-slate-700 overflow-hidden shadow-xl">
