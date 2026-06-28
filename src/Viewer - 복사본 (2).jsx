@@ -22,105 +22,11 @@ const determineSeasonLabel = (dateStr) => {
 const getGradeColor = (grade) => {
   if (!grade) return '#64748b';
   const g = String(grade);
-  if (g.includes('레전드리')) return '#16a34a'; 
-  if (g.includes('유니크')) return '#facc15';   
-  if (g.includes('에픽')) return '#a855f7';     
-  if (g.includes('레어')) return '#60a5fa';     
+  if (g.includes('레전드리')) return '#16a34a'; // 진한 녹색
+  if (g.includes('유니크')) return '#facc15';   // 노랑 계열
+  if (g.includes('에픽')) return '#a855f7';     // 보라 계열
+  if (g.includes('레어')) return '#60a5fa';     // 연파랑
   return '#94a3b8';
-};
-
-// 신규 캐릭터 API 카멜케이스 대응 정규화 헬퍼
-const normalizeVCore = (c) => ({
-  type: c?.v_core_type || c?.vcoreType || '알 수 없음',
-  name: c?.v_core_name || c?.vcoreName || '이름 없음',
-  level: Number(c?.v_core_level || c?.vcoreLevel || 0),
-  icon: c?.v_core_icon || c?.vcoreIcon || ''
-});
-
-// V Point 누적 계산
-const calculateVPoint = (type, level) => {
-  if (level <= 0) return 0;
-  if (type && type.includes('강화')) {
-    let pts = 1;
-    for(let i=2; i<=level; i++){
-      if(i<=40) pts += 1;
-      else if(i<=60) pts += 2;
-    }
-    return pts;
-  } else {
-    let pts = 7;
-    for(let i=2; i<=level; i++){
-      if(i<=10) pts += 4;
-      else if(i<=20) pts += 6;
-      else if(i<=30) pts += 9;
-    }
-    return pts;
-  }
-};
-
-const getTotalVPoints = (vcores) => {
-  let total = 0;
-  safeArray(vcores).forEach(c => {
-    const core = normalizeVCore(c);
-    total += calculateVPoint(core.type, core.level);
-  });
-  return total;
-};
-
-// HEXA 솔 에르다/조각 누적 계산
-const hexaCosts = {
-  "스킬 코어": [[5,100],[1,30],[1,35],[1,40],[2,45],[2,50],[2,55],[3,60],[3,65],[10,200],[3,80],[3,90],[4,100],[4,110],[4,120],[4,130],[4,140],[4,150],[5,160],[15,350],[5,170],[5,180],[5,190],[5,200],[5,210],[6,220],[6,230],[6,240],[7,250],[20,500]],
-  "강화 코어": [[4,75],[1,23],[1,27],[1,30],[2,34],[2,38],[2,42],[3,45],[3,49],[8,150],[3,60],[3,68],[3,75],[3,83],[3,90],[3,98],[3,105],[3,113],[4,120],[12,263],[4,128],[4,135],[4,143],[4,150],[4,158],[5,165],[5,173],[5,180],[6,188],[15,375]],
-  "마스터리 코어": [[3,50],[1,15],[1,18],[1,20],[1,23],[1,25],[1,28],[2,30],[2,33],[5,100],[2,40],[2,45],[2,50],[2,55],[2,60],[2,65],[2,70],[2,75],[3,80],[8,175],[3,85],[3,90],[3,95],[3,100],[3,105],[3,110],[3,115],[3,120],[4,125],[10,250]],
-  "공용 코어": [[7,125],[2,38],[2,44],[2,50],[3,57],[3,63],[3,69],[5,75],[5,82],[14,300],[5,110],[5,124],[6,138],[6,152],[6,165],[6,179],[6,193],[6,207],[7,220],[17,525],[7,234],[7,248],[7,262],[7,275],[7,289],[9,303],[9,317],[9,330],[10,344],[20,750]],
-  "3rd 공용 코어": [[4,90],[1,25],[1,30],[1,35],[2,40],[2,45],[2,50],[3,55],[3,60],[9,180],[3,73],[3,81],[3,90],[3,98],[4,107],[4,115],[4,124],[4,132],[4,141],[14,315],[4,151],[5,160],[5,170],[5,179],[5,189],[5,198],[5,208],[5,217],[6,227],[18,450]]
-};
-
-const calculateHexaCost = (type, level, name) => {
-  let table = hexaCosts[type] || hexaCosts["스킬 코어"];
-  if (type === '공용 코어' && name && (name.includes('솔 야누스') || name.includes('3rd'))) {
-    table = hexaCosts["3rd 공용 코어"];
-  }
-  let erda = 0; let piece = 0;
-  for(let i=0; i<level; i++){
-    if(table[i]) { erda += table[i][0]; piece += table[i][1]; }
-  }
-  return { erda, piece };
-};
-
-const getTotalHexaCost = (hexacores) => {
-  let totalErda = 0; let totalPiece = 0;
-  safeArray(hexacores).forEach(core => {
-    const cost = calculateHexaCost(core.hexa_core_type, core.hexa_core_level, core.hexa_core_name);
-    totalErda += cost.erda; totalPiece += cost.piece;
-  });
-  return { erda: totalErda, piece: totalPiece };
-};
-
-// 경험치 이력 헬퍼
-const getExpHistory = (dataArr, limitIndex) => {
-  if (!dataArr || !Array.isArray(dataArr)) return [];
-  const history = [];
-  const limit = Math.max(-1, limitIndex);
-  for (let i = 0; i <= limit && i < dataArr.length; i++) {
-    const data = dataArr[i];
-    if (data && data.basic) {
-      const currentLevel = data.basic.character_level || 0; 
-      const currentExp = Number(data.basic.character_exp) || 0; 
-      const currentRate = Number(data.basic.character_exp_rate) || 0;
-      let gainedRate = 0; let isLevelUp = false;
-      if (i > 0) {
-        const prevLevel = dataArr[i - 1]?.basic?.character_level || 0; 
-        const prevRate = Number(dataArr[i - 1]?.basic?.character_exp_rate) || 0;
-        if (currentLevel === prevLevel) gainedRate = currentRate - prevRate; 
-        else if (currentLevel > prevLevel) { isLevelUp = true; gainedRate = (100 - prevRate) + currentRate; }
-      }
-      const safeDate = data.targetDate ? new Date(data.targetDate) : new Date();
-      const dayStr = ['일', '월', '화', '수', '목', '금', '토'][safeDate.getDay()] || '';
-      history.push({ date: data.targetDate, dayOfWeek: dayStr, level: currentLevel, exp: currentExp, expRate: currentRate, gainedRate, isLevelUp, isFirst: i === 0 });
-    }
-  }
-  return history.reverse();
 };
 
 export default function App() {
@@ -236,10 +142,6 @@ export default function App() {
   const LBL_PAST = useMemo(() => determineSeasonLabel(firstData3?.targetDate), [firstData3]);
 
   const estimatedS4Date = chartData?.s4Start ? new Date(new Date(chartData.s4Start).getTime() + currentDaySlider * 86400000).toISOString().split('T')[0] : '';
-
-  // 경험치 이력 메모이제이션
-  const expHistory4 = useMemo(() => getExpHistory(season4Data, currentS4Index), [season4Data, currentS4Index]);
-  const expHistory3 = useMemo(() => isCompareMode ? getExpHistory(season3Data, currentS3Index) : [], [isCompareMode, season3Data, currentS3Index]);
 
   // 마일스톤 생성 로직
   const raceData = useMemo(() => {
@@ -431,9 +333,34 @@ export default function App() {
     return stats.length > 0 ? stats.join(', ') : null;
   };
 
+  const generatedExpHistory = useMemo(() => {
+    if (!season4Data || !Array.isArray(season4Data)) return [];
+    const history = [];
+    const limit = Math.max(-1, currentS4Index);
+    for (let i = 0; i <= limit && i < season4Data.length; i++) {
+      const data = season4Data[i];
+      if (data && data.basic) {
+        const currentLevel = data.basic.character_level || 0; 
+        const currentExp = Number(data.basic.character_exp) || 0; 
+        const currentRate = Number(data.basic.character_exp_rate) || 0;
+        let gainedRate = 0; let isLevelUp = false;
+        if (i > 0) {
+          const prevLevel = season4Data[i - 1]?.basic?.character_level || 0; 
+          const prevRate = Number(season4Data[i - 1]?.basic?.character_exp_rate) || 0;
+          if (currentLevel === prevLevel) gainedRate = currentRate - prevRate; 
+          else if (currentLevel > prevLevel) { isLevelUp = true; gainedRate = (100 - prevRate) + currentRate; }
+        }
+        const safeDate = data.targetDate ? new Date(data.targetDate) : new Date();
+        const dayStr = ['일', '월', '화', '수', '목', '금', '토'][safeDate.getDay()] || '';
+        history.push({ date: data.targetDate, dayOfWeek: dayStr, level: currentLevel, exp: currentExp, expRate: currentRate, gainedRate, isLevelUp, isFirst: i === 0 });
+      }
+    }
+    return history.reverse();
+  }, [season4Data, currentS4Index]);
+
   // 장비 렌더링 헬퍼
   const renderItemCard = (item, isNow) => {
-    if (!item) return <div className="flex-1 p-4 text-center text-slate-600 text-xs border border-dashed border-slate-800 rounded-lg flex items-center justify-center min-h-[80px]">장착 안함</div>;
+    if (!item) return <div className="flex-1 p-4 text-center text-slate-600 text-xs border border-dashed border-slate-800 rounded-lg flex items-center justify-center">해당 부위 장착 안함</div>;
     const addOptText = formatAddOption(item?.item_add_option);
     const hasPot = item?.potential_option_1 || item?.potential_option_2 || item?.potential_option_3;
     const hasAddPot = item?.additional_potential_option_1 || item?.additional_potential_option_2 || item?.additional_potential_option_3;
@@ -442,12 +369,11 @@ export default function App() {
       <div className="flex-1 flex flex-col gap-3 h-full">
         <div className="flex items-start gap-3">
           <div className={`w-12 h-12 rounded-lg border flex items-center justify-center flex-shrink-0 z-0 ${isNow ? 'bg-slate-900 border-slate-700' : 'bg-slate-800/50 border-slate-700/50'}`}>
-            <img src={item?.item_shape_icon || item?.cash_item_icon || item?.symbol_icon} alt="icon" className="w-8 h-8 object-contain z-10 drop-shadow-md" />
+            <img src={item?.item_shape_icon} alt="icon" className="w-8 h-8 object-contain z-10 drop-shadow-md" />
           </div>
           <div className="min-w-0 pt-0.5">
-            <div className={`text-sm font-bold truncate ${isNow ? 'text-slate-200' : 'text-slate-400'}`}>{item?.item_name || item?.cash_item_name || item?.symbol_name}{Number(item?.scroll_upgrade) > 0 && <span className="text-blue-400 ml-1">(+{item?.scroll_upgrade})</span>}</div>
+            <div className={`text-sm font-bold truncate ${isNow ? 'text-slate-200' : 'text-slate-400'}`}>{item?.item_name}{Number(item?.scroll_upgrade) > 0 && <span className="text-blue-400 ml-1">(+{item?.scroll_upgrade})</span>}</div>
             {item?.starforce && item.starforce !== "0" && <div className={`text-[10px] font-black mt-1 ${isNow ? 'text-yellow-400' : 'text-slate-500'}`}>★ {item.starforce}성</div>}
-            {item?.symbol_level && <div className={`text-[10px] font-black mt-1 ${isNow ? 'text-orange-400' : 'text-slate-500'}`}>Lv.{item.symbol_level}</div>}
           </div>
         </div>
         
@@ -561,7 +487,7 @@ export default function App() {
             <div className="absolute -top-20 -right-20 w-40 h-40 bg-orange-500/20 rounded-full blur-3xl pointer-events-none"></div>
             <div className="p-8 pb-4 text-center border-b border-slate-800">
               <div className="w-24 h-24 mx-auto bg-slate-800 rounded-full border-4 border-slate-700 shadow-xl overflow-hidden mb-4 relative flex items-center justify-center">
-                <img src={firstData?.basic?.character_image} alt="캐릭터" className="w-full h-full object-contain relative z-10 drop-shadow-md scale-[1.4]" />
+                <img src={firstData?.basic?.character_image} alt="캐릭터" className="w-20 h-20 object-contain relative z-10 drop-shadow-md" />
               </div>
               <div className="text-xs text-orange-400 font-black tracking-widest mb-1">[{generatedTitle}]</div>
               <h2 className="text-3xl font-black text-white tracking-tight">{firstData?.basic?.character_name}</h2>
@@ -589,7 +515,6 @@ export default function App() {
         </div>
       )}
 
-      {}
       {/* 상단바 및 타임라인 컨트롤 */}
       <div className="bg-[#181a20] border-b border-slate-800 sticky top-0 z-50 shadow-lg px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-4 w-full md:w-auto">
@@ -631,7 +556,7 @@ export default function App() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 mt-8 space-y-6">
-        {/* 캐릭터 정보 좌우 비교 및 단일 뷰 */}
+        {/* 캐릭터 정보 좌우 비교 */}
         <div className={`grid grid-cols-1 ${isCompareMode ? 'md:grid-cols-2' : ''} gap-6`}>
           {isCompareMode && (
             <div className="bg-[#1e2028] rounded-2xl p-6 flex flex-col md:flex-row items-center gap-6 border border-slate-800 shadow-xl relative overflow-hidden group min-h-[160px]">
@@ -641,7 +566,7 @@ export default function App() {
                 <>
                   <div className="relative w-24 h-24 bg-[#181a20] rounded-2xl border border-slate-700 flex items-center justify-center flex-shrink-0 shadow-inner overflow-hidden mt-6 md:mt-0 z-10">
                     <div className="absolute inset-0 bg-blue-500/5"></div>
-                    <img src={currentData3?.basic?.character_image} alt="캐릭터" className="w-full h-full object-contain relative z-10 scale-[1.4]" />
+                    <img src={currentData3?.basic?.character_image} alt="캐릭터" className="max-w-full max-h-full object-contain relative z-10" />
                   </div>
                   <div className="flex-1 text-center md:text-left pt-2 z-10">
                     <div className="flex flex-wrap justify-center md:justify-start gap-2 mb-2">
@@ -664,37 +589,32 @@ export default function App() {
             </div>
           )}
           
-          <div className={`bg-[#1e2028] rounded-2xl p-6 flex flex-col ${isCompareMode ? 'md:flex-row items-center gap-6' : 'items-center justify-center gap-4 text-center'} border border-slate-800 shadow-xl relative overflow-hidden group min-h-[160px]`}>
+          <div className="bg-[#1e2028] rounded-2xl p-6 flex flex-col md:flex-row items-center gap-6 border border-slate-800 shadow-xl relative overflow-hidden group min-h-[160px]">
             <div className="absolute right-0 top-0 w-64 h-64 bg-orange-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
             {isCompareMode && <div className="absolute top-3 left-4 text-[10px] font-black text-orange-400 bg-orange-900/50 px-2 py-0.5 rounded border border-orange-500/30 z-20 shadow-sm">{LBL_NOW}</div>}
             
             {currentData ? (
               <>
-                <div className={`relative ${isCompareMode ? 'w-24 h-24 mt-6 md:mt-0' : 'w-32 h-32 mt-2'} bg-[#181a20] rounded-2xl border border-slate-700 flex items-center justify-center flex-shrink-0 shadow-inner overflow-hidden z-10`}>
+                <div className="relative w-24 h-24 bg-[#181a20] rounded-2xl border border-slate-700 flex items-center justify-center flex-shrink-0 shadow-inner overflow-hidden mt-6 md:mt-0 z-10">
                   <div className="absolute inset-0 bg-orange-500/5"></div>
-                  <img src={currentData?.basic?.character_image} alt="캐릭터" className="w-full h-full object-contain relative z-10 scale-[1.4]" />
+                  <img src={currentData?.basic?.character_image} alt="캐릭터" className="max-w-full max-h-full object-contain relative z-10" />
                 </div>
-                <div className={`flex-1 pt-2 z-10 ${isCompareMode ? 'text-center md:text-left' : 'flex flex-col items-center'}`}>
-                  <div className={`flex flex-wrap gap-2 text-xs text-slate-400 mb-2 ${isCompareMode ? 'justify-center md:justify-start' : 'justify-center items-center'}`}>
+                <div className="flex-1 text-center md:text-left pt-2 z-10">
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-xs text-slate-400 mb-2">
                     <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 rounded-full">{currentData?.basic?.world_name}</span>
                     <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 rounded-full">{currentData?.basic?.character_class}</span>
                     <span className="px-2 py-0.5 text-orange-400 border border-orange-700/50 bg-orange-900/20 rounded-full text-[10px] font-bold">조회일: {currentData?.targetDate} (Day {currentDaySlider})</span>
                   </div>
-                  <h2 className={`font-bold text-white tracking-tight mb-3 ${isCompareMode ? 'text-3xl' : 'text-4xl'}`}>
+                  <h2 className="text-3xl font-bold text-white tracking-tight mb-3">
                     {currentData?.basic?.character_name}
                     {currentData?.title?.title_name && <span className="text-sm font-normal text-yellow-400 ml-3">[{currentData.title.title_name}]</span>}
                   </h2>
-                  <div className={`flex flex-wrap gap-4 ${isCompareMode ? 'justify-center md:justify-start' : 'justify-center'}`}>
-                     <div className="flex flex-col"><span className="text-[10px] text-slate-500 uppercase">Level</span><span className={`font-bold text-orange-400 ${isCompareMode ? 'text-lg' : 'text-xl'}`}>{currentData?.basic?.character_level}</span></div>
+                  <div className="flex flex-wrap justify-center md:justify-start gap-4">
+                     <div className="flex flex-col"><span className="text-[10px] text-slate-500 uppercase">Level</span><span className="text-lg font-bold text-orange-400">{currentData?.basic?.character_level}</span></div>
                      <div className="w-px bg-slate-700"></div>
-                     <div className="flex flex-col"><span className="text-[10px] text-slate-500 uppercase">Combat Power</span><span className={`font-bold text-orange-400 ${isCompareMode ? 'text-lg' : 'text-xl'}`}>{Number(getStatValue(currentData, '전투력')).toLocaleString()}</span></div>
-                     {/* 유니온 데이터가 0보다 클 때만 표시 (챌린저스 서버 대응) */}
-                     {currentData?.union?.union_level > 0 && (
-                       <>
-                         <div className="w-px bg-slate-700"></div>
-                         <div className="flex flex-col"><span className="text-[10px] text-slate-500 uppercase">Union</span><span className={`font-bold text-orange-400 ${isCompareMode ? 'text-lg' : 'text-xl'}`}>{currentData?.union?.union_level}</span></div>
-                       </>
-                     )}
+                     <div className="flex flex-col"><span className="text-[10px] text-slate-500 uppercase">Combat Power</span><span className="text-lg font-bold text-orange-400">{Number(getStatValue(currentData, '전투력')).toLocaleString()}</span></div>
+                     <div className="w-px bg-slate-700"></div>
+                     <div className="flex flex-col"><span className="text-[10px] text-slate-500 uppercase">Union</span><span className="text-lg font-bold text-orange-400">{currentData?.union?.union_level || 0}</span></div>
                   </div>
                 </div>
               </>
@@ -707,14 +627,14 @@ export default function App() {
           </div>
         </div>
 
-        {/* 메인 탭 메뉴 (단일 뷰일 때 '비교' 텍스트 제거) */}
+        {/* 메인 탭 메뉴 */}
         <div className="flex space-x-1 border-b border-slate-800 overflow-x-auto custom-scrollbar">
           {[
             { id: 'overview', icon: TrendingUp, label: isCompareMode ? '타임라인 비교' : '타임라인' },
             { id: 'character', icon: User, label: '캐릭터 정보' },
-            { id: 'stats', icon: Swords, label: isCompareMode ? '스탯 상세 비교' : '스탯 상세' },
-            { id: 'equipment', icon: Package, label: isCompareMode ? '장비 비교' : '장비' },
-            { id: 'skills', icon: Hexagon, label: isCompareMode ? '스킬 환산 비교' : '스킬 환산' },
+            { id: 'stats', icon: Swords, label: '스탯 상세 비교' },
+            { id: 'equipment', icon: Package, label: '장비' },
+            { id: 'skills', icon: Hexagon, label: '스킬' },
             { id: 'union', icon: Crown, label: '통계/로그' },
           ].map((tab) => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center px-6 py-3 text-sm font-medium transition-all border-b-2 whitespace-nowrap ${activeTab === tab.id ? 'border-orange-500 text-orange-400 bg-orange-500/5' : 'border-transparent text-slate-500 hover:text-slate-200'}`}>
@@ -724,7 +644,6 @@ export default function App() {
         </div>
 
         <div className="animate-in fade-in duration-300">
-          {}
           {/* ======================= OVERVIEW TAB ======================= */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
@@ -823,7 +742,7 @@ export default function App() {
                 <div className="bg-[#1e2028] p-8 rounded-2xl border border-slate-800 shadow-lg space-y-8">
                   <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-4">
                     {[
-                      {id:'level', lbl:'캐릭터 레벨'}, {id:'cp_low', lbl:'전투력 (~5천만)'}, {id:'cp_mid', lbl:'전투력 (~1억)'}, {id:'cp_high', lbl:'전투력 (1억~)'}
+                      {id:'level', lbl:'캐릭터 레벨'}, {id:'cp_low', lbl:'CP (~5천만)'}, {id:'cp_mid', lbl:'CP (~1억)'}, {id:'cp_high', lbl:'CP (1억~)'}
                     ].map(cat => (
                       <button key={cat.id} onClick={() => setRaceCategory(cat.id)} className={`px-4 py-1.5 text-xs font-black rounded-full transition ${(raceData?.[cat.id] || []).length === 0 ? 'hidden' : ''} ${raceCategory === cat.id ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-500'}`}>{cat.lbl}</button>
                     ))}
@@ -867,7 +786,6 @@ export default function App() {
             </div>
           )}
 
-          {}
           {/* ======================= CHARACTER TAB ======================= */}
           {activeTab === 'character' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -932,7 +850,6 @@ export default function App() {
             </div>
           )}
 
-          {}
           {/* ======================= STATS TAB ======================= */}
           {activeTab === 'stats' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1020,13 +937,12 @@ export default function App() {
             </div>
           )}
 
-          {}
           {/* ======================= EQUIPMENT TAB ======================= */}
           {activeTab === 'equipment' && (
             <div className="space-y-6">
-              <div className="flex space-x-2 border-b border-slate-800 pb-2 overflow-x-auto custom-scrollbar">
-                {[ { id: 'item', label: isCompareMode ? '장착 아이템 (비교 지원)' : '장착 아이템' }, { id: 'cash', label: '캐시 장비' }, { id: 'pet', label: '펫/안드로이드' }, { id: 'symbol', label: '심볼' }, { id: 'set', label: '세트 효과' } ].map(st => (
-                  <button key={st.id} onClick={() => setEquipSubTab(st.id)} className={`px-4 py-2 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${equipSubTab === st.id ? 'bg-orange-600 text-white' : 'bg-[#181a20] text-slate-400 hover:bg-slate-700'}`}>{st.label}</button>
+              <div className="flex space-x-2 border-b border-slate-800 pb-2">
+                {[ { id: 'item', label: '장착 아이템 (비교 지원)' }, { id: 'cash', label: '캐시 장비' }, { id: 'pet', label: '펫/안드로이드' }, { id: 'symbol', label: '심볼' }, { id: 'set', label: '세트 효과' } ].map(st => (
+                  <button key={st.id} onClick={() => setEquipSubTab(st.id)} className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors ${equipSubTab === st.id ? 'bg-orange-600 text-white' : 'bg-[#181a20] text-slate-400 hover:bg-slate-700'}`}>{st.label}</button>
                 ))}
               </div>
               
@@ -1071,459 +987,58 @@ export default function App() {
                   })()}
                 </div>
               )}
-
-              {equipSubTab === 'cash' && (
-                isCompareMode ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-[#1e2028] p-4 rounded-2xl border border-slate-800 shadow-lg">
-                      <div className="text-xs font-bold text-blue-400 border-b border-blue-900/50 pb-2 mb-4 text-center">{LBL_PAST} 캐시 장비</div>
-                      {safeArray(currentData3?.cashEquipment?.cash_item_equipment_preset_1).length > 0 ? (
-                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                          {safeArray(currentData3.cashEquipment.cash_item_equipment_preset_1).map((item, idx) => (
-                            <div key={idx} className="bg-[#181a20] p-2 rounded-xl border border-slate-700/50 flex flex-col items-center text-center">
-                              <img src={item.cash_item_icon} alt="icon" className="w-10 h-10 mb-1 object-contain drop-shadow-md" />
-                              <span className="text-[9px] text-slate-500">{item.cash_item_equipment_part}</span>
-                              <span className="text-[10px] font-semibold text-slate-300 mt-1 line-clamp-2">{item.cash_item_name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : <NoDataAlert message="과거 캐시 장비 데이터 없음" />}
-                    </div>
-                    <div className="bg-[#1e2028] p-4 rounded-2xl border border-slate-800 shadow-lg">
-                      <div className="text-xs font-bold text-orange-400 border-b border-orange-900/50 pb-2 mb-4 text-center">{LBL_NOW} 캐시 장비</div>
-                      {safeArray(currentData?.cashEquipment?.cash_item_equipment_preset_1).length > 0 ? (
-                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                          {safeArray(currentData.cashEquipment.cash_item_equipment_preset_1).map((item, idx) => (
-                            <div key={idx} className="bg-[#181a20] p-2 rounded-xl border border-slate-700/50 flex flex-col items-center text-center">
-                              <img src={item.cash_item_icon} alt="icon" className="w-10 h-10 mb-1 object-contain drop-shadow-md" />
-                              <span className="text-[9px] text-slate-500">{item.cash_item_equipment_part}</span>
-                              <span className="text-[10px] font-semibold text-slate-300 mt-1 line-clamp-2">{item.cash_item_name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : <NoDataAlert message="현재 캐시 장비 데이터 없음" />}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {safeArray(activeData?.cashEquipment?.cash_item_equipment_preset_1).map((item, idx) => (
-                      <div key={idx} className="bg-[#1e2028] p-3 rounded-xl border border-slate-700/50 flex flex-col items-center text-center">
-                        <div className="w-12 h-12 mb-2 flex items-center justify-center"><img src={item.cash_item_icon} alt="icon" className="max-w-full max-h-full object-contain" /></div>
-                        <span className="text-[10px] text-slate-500">{item.cash_item_equipment_part}</span>
-                        <span className="text-xs font-semibold text-slate-200 mt-1 line-clamp-2">{item.cash_item_name}</span>
-                      </div>
-                    ))}
-                  </div> 
-                )
-              )}
-
+              {equipSubTab === 'cash' && ( <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">{safeArray(activeData?.cashEquipment?.cash_item_equipment_preset_1).map((item, idx) => (<div key={idx} className="bg-[#1e2028] p-3 rounded-xl border border-slate-700/50 flex flex-col items-center text-center"><div className="w-12 h-12 mb-2 flex items-center justify-center"><img src={item.cash_item_icon} alt="icon" className="max-w-full max-h-full object-contain" /></div><span className="text-[10px] text-slate-500">{item.cash_item_equipment_part}</span><span className="text-xs font-semibold text-slate-200 mt-1 line-clamp-2">{item.cash_item_name}</span></div>))}</div> )}
               {equipSubTab === 'pet' && (
-                isCompareMode ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-6">
-                      <div className="text-xs font-bold text-blue-400 bg-[#1e2028] p-3 rounded-xl border border-blue-900/50 text-center">{LBL_PAST}</div>
-                      <div className="bg-[#1e2028] p-5 rounded-2xl border border-slate-800 shadow-lg">
-                        <h3 className="text-[10px] font-semibold text-slate-400 mb-3">안드로이드</h3>
-                        {currentData3?.android?.android_name ? (<div className="bg-[#181a20] p-3 rounded-xl border border-slate-700 flex items-center gap-3"><div className="w-12 h-12 bg-slate-900 rounded border flex items-center justify-center"><img src={currentData3.android.android_icon} alt="android" className="w-8 h-8"/></div><div><div className="font-bold text-sm text-slate-200 mb-1">{currentData3.android.android_name}</div><div className="text-[10px] text-slate-400">헤어: {currentData3.android.android_hair?.hair_name}</div><div className="text-[10px] text-slate-400">성형: {currentData3.android.android_face?.face_name}</div></div></div>) : <div className="text-[10px] text-slate-600">없음</div>}
-                      </div>
-                      <div className="bg-[#1e2028] p-5 rounded-2xl border border-slate-800 shadow-lg">
-                        <h3 className="text-[10px] font-semibold text-slate-400 mb-3">펫</h3>
-                        {currentData3?.pet ? (<div className="space-y-2">{[1, 2, 3].map(num => { const petName = currentData3.pet[`pet_${num}_name`]; if (!petName) return null; return (<div key={num} className="bg-[#181a20] p-2.5 rounded-xl border border-slate-700 flex items-center gap-3"><img src={currentData3.pet[`pet_${num}_icon`]} alt="pet" className="w-8 h-8 object-contain" /><div className="text-xs font-medium text-slate-200">{petName}</div></div>); })}</div>) : <div className="text-[10px] text-slate-600">없음</div>}
-                      </div>
-                    </div>
-                    <div className="space-y-6">
-                      <div className="text-xs font-bold text-orange-400 bg-[#1e2028] p-3 rounded-xl border border-orange-900/50 text-center">{LBL_NOW}</div>
-                      <div className="bg-[#1e2028] p-5 rounded-2xl border border-slate-800 shadow-lg">
-                        <h3 className="text-[10px] font-semibold text-slate-400 mb-3">안드로이드</h3>
-                        {currentData?.android?.android_name ? (<div className="bg-[#181a20] p-3 rounded-xl border border-slate-700 flex items-center gap-3"><div className="w-12 h-12 bg-slate-900 rounded border flex items-center justify-center"><img src={currentData.android.android_icon} alt="android" className="w-8 h-8"/></div><div><div className="font-bold text-sm text-slate-200 mb-1">{currentData.android.android_name}</div><div className="text-[10px] text-slate-400">헤어: {currentData.android.android_hair?.hair_name}</div><div className="text-[10px] text-slate-400">성형: {currentData.android.android_face?.face_name}</div></div></div>) : <div className="text-[10px] text-slate-600">없음</div>}
-                      </div>
-                      <div className="bg-[#1e2028] p-5 rounded-2xl border border-slate-800 shadow-lg">
-                        <h3 className="text-[10px] font-semibold text-slate-400 mb-3">펫</h3>
-                        {currentData?.pet ? (<div className="space-y-2">{[1, 2, 3].map(num => { const petName = currentData.pet[`pet_${num}_name`]; if (!petName) return null; return (<div key={num} className="bg-[#181a20] p-2.5 rounded-xl border border-slate-700 flex items-center gap-3"><img src={currentData.pet[`pet_${num}_icon`]} alt="pet" className="w-8 h-8 object-contain" /><div className="text-xs font-medium text-slate-200">{petName}</div></div>); })}</div>) : <div className="text-[10px] text-slate-600">없음</div>}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-[#1e2028] p-6 rounded-2xl border border-slate-800 shadow-lg"><h3 className="text-sm font-semibold text-slate-300 mb-4">안드로이드</h3>{activeData?.android?.android_name ? (<div className="bg-[#181a20] p-4 rounded-xl border border-slate-700 flex items-center gap-4"><div className="w-16 h-16 bg-slate-900 rounded border flex items-center justify-center"><img src={activeData.android.android_icon} alt="android"/></div><div><div className="font-bold text-slate-200 mb-1">{activeData.android.android_name}</div><div className="text-xs text-slate-400">헤어: {activeData.android.android_hair?.hair_name}</div><div className="text-xs text-slate-400">성형: {activeData.android.android_face?.face_name}</div></div></div>) : <NoDataAlert message="안드로이드 데이터 없음" />}</div>
-                    <div className="bg-[#1e2028] p-6 rounded-2xl border border-slate-800 shadow-lg"><h3 className="text-sm font-semibold text-slate-300 mb-4">펫</h3>{activeData?.pet ? (<div className="space-y-3">{[1, 2, 3].map(num => { const petName = activeData.pet[`pet_${num}_name`]; if (!petName) return null; return (<div key={num} className="bg-[#181a20] p-3 rounded-xl border border-slate-700 flex items-center gap-4"><img src={activeData.pet[`pet_${num}_icon`]} alt="pet" className="w-10 h-10 object-contain" /><div className="text-sm font-medium text-slate-200">{petName}</div></div>); })}</div>) : <NoDataAlert message="펫 데이터 없음" />}</div>
-                  </div>
-                )
-              )}
-
-              {equipSubTab === 'symbol' && (
-                <div className={`grid grid-cols-1 ${isCompareMode ? 'lg:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4`}>
-                  {(() => {
-                    const symbolsMap = new Map();
-                    safeArray(currentData?.symbols?.symbol).forEach(i => symbolsMap.set(i.symbol_name, i.symbol_name));
-                    safeArray(currentData3?.symbols?.symbol).forEach(i => { if(!symbolsMap.has(i.symbol_name)) symbolsMap.set(i.symbol_name, i.symbol_name); });
-                    const allSymbols = Array.from(symbolsMap.values());
-                    
-                    if (allSymbols.length === 0) return <div className="col-span-full"><NoDataAlert message="심볼 데이터 없음" /></div>;
-
-                    return allSymbols.map((symName, idx) => {
-                      const sym4 = currentData?.symbols?.symbol?.find(i => i.symbol_name === symName);
-                      const sym3 = isCompareMode ? currentData3?.symbols?.symbol?.find(i => i.symbol_name === symName) : null;
-                      
-                      return (
-                        <div key={idx} className="bg-[#1e2028] rounded-2xl border border-slate-800 shadow-lg flex flex-col overflow-hidden">
-                          <div className="bg-[#111318] px-4 py-2 border-b border-slate-800 flex justify-between items-center">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{symName}</span>
-                          </div>
-                          {isCompareMode ? (
-                            <div className="flex divide-x divide-slate-800 h-full">
-                              <div className="flex-1 p-3 bg-slate-900/20 opacity-80 flex flex-col justify-center text-center">
-                                <div className="text-[9px] font-bold text-blue-400 mb-2">{LBL_PAST}</div>
-                                {sym3 ? (
-                                  <>
-                                    <div className="text-sm font-bold text-blue-300">Lv. {sym3.symbol_level}</div>
-                                    <div className="text-[10px] text-slate-500 mt-1">포스 +{sym3.symbol_force}</div>
-                                  </>
-                                ) : <div className="text-xs text-slate-600">없음</div>}
-                              </div>
-                              <div className="flex-1 p-3 bg-slate-900/40 flex flex-col justify-center text-center">
-                                <div className="text-[9px] font-bold text-orange-400 mb-2">{LBL_NOW}</div>
-                                {sym4 ? (
-                                  <>
-                                    <div className="text-sm font-bold text-orange-400">Lv. {sym4.symbol_level}</div>
-                                    <div className="text-[10px] text-slate-400 mt-1">포스 +{sym4.symbol_force}</div>
-                                  </>
-                                ) : <div className="text-xs text-slate-600">없음</div>}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="p-4 flex items-center justify-between">
-                              <img src={sym4?.symbol_icon} alt="symbol" className="w-12 h-12 object-contain" />
-                              <div className="text-right">
-                                <div className="text-sm font-bold text-orange-400">Lv. {sym4?.symbol_level}</div>
-                                <div className="text-xs text-blue-300 mt-0.5">포스 +{sym4?.symbol_force}</div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    });
-                  })()}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-[#1e2028] p-6 rounded-2xl border border-slate-800 shadow-lg"><h3 className="text-sm font-semibold text-slate-300 mb-4">안드로이드</h3>{activeData?.android?.android_name ? (<div className="bg-[#181a20] p-4 rounded-xl border border-slate-700 flex items-center gap-4"><div className="w-16 h-16 bg-slate-900 rounded border flex items-center justify-center"><img src={activeData.android.android_icon} alt="android"/></div><div><div className="font-bold text-slate-200 mb-1">{activeData.android.android_name}</div><div className="text-xs text-slate-400">헤어: {activeData.android.android_hair?.hair_name}</div><div className="text-xs text-slate-400">성형: {activeData.android.android_face?.face_name}</div></div></div>) : <NoDataAlert message="안드로이드 데이터 없음" />}</div>
+                  <div className="bg-[#1e2028] p-6 rounded-2xl border border-slate-800 shadow-lg"><h3 className="text-sm font-semibold text-slate-300 mb-4">펫</h3>{activeData?.pet ? (<div className="space-y-3">{[1, 2, 3].map(num => { const petName = activeData.pet[`pet_${num}_name`]; if (!petName) return null; return (<div key={num} className="bg-[#181a20] p-3 rounded-xl border border-slate-700 flex items-center gap-4"><img src={activeData.pet[`pet_${num}_icon`]} alt="pet" className="w-10 h-10 object-contain" /><div className="text-sm font-medium text-slate-200">{petName}</div></div>); })}</div>) : <NoDataAlert message="펫 데이터 없음" />}</div>
                 </div>
               )}
-
-              {equipSubTab === 'set' && (
-                isCompareMode ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-[#1e2028] p-4 rounded-2xl border border-slate-800 shadow-lg">
-                      <div className="text-xs font-bold text-blue-400 border-b border-blue-900/50 pb-2 mb-4 text-center">{LBL_PAST} 세트 효과</div>
-                      <div className="space-y-4">
-                        {safeArray(currentData3?.setEffect?.set_effect).length > 0 ? safeArray(currentData3.setEffect.set_effect).map((setInfo, idx) => (
-                          <div key={idx} className="bg-[#181a20] rounded-xl border border-slate-700/50 p-4">
-                            <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-700"><h4 className="font-bold text-slate-300 text-xs">{setInfo.set_name}</h4><span className="bg-blue-500/20 text-blue-300 text-[10px] px-2 py-0.5 rounded-lg">{setInfo.total_set_count}세트 적용</span></div>
-                            <div className="space-y-1 text-[10px] text-slate-500">{safeArray(setInfo.set_effect_info).filter(e => e.set_count <= setInfo.total_set_count).map((eff, i) => (<div key={i} className="p-1.5 rounded bg-slate-900/50 text-slate-400"><span className="font-semibold">{eff.set_count}세트:</span> <span className="whitespace-pre-wrap">{eff.set_option}</span></div>))}</div>
-                          </div>
-                        )) : <NoDataAlert message="과거 세트 효과 없음" />}
-                      </div>
-                    </div>
-                    <div className="bg-[#1e2028] p-4 rounded-2xl border border-slate-800 shadow-lg">
-                      <div className="text-xs font-bold text-orange-400 border-b border-orange-900/50 pb-2 mb-4 text-center">{LBL_NOW} 세트 효과</div>
-                      <div className="space-y-4">
-                        {safeArray(currentData?.setEffect?.set_effect).length > 0 ? safeArray(currentData.setEffect.set_effect).map((setInfo, idx) => (
-                          <div key={idx} className="bg-[#181a20] rounded-xl border border-slate-700/50 p-4">
-                            <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-700"><h4 className="font-bold text-slate-200 text-xs">{setInfo.set_name}</h4><span className="bg-orange-500/20 text-orange-400 text-[10px] px-2 py-0.5 rounded-lg">{setInfo.total_set_count}세트 적용</span></div>
-                            <div className="space-y-1 text-[10px] text-slate-400">{safeArray(setInfo.set_effect_info).filter(e => e.set_count <= setInfo.total_set_count).map((eff, i) => (<div key={i} className="p-1.5 rounded bg-green-900/10 text-green-300"><span className="font-semibold">{eff.set_count}세트:</span> <span className="whitespace-pre-wrap">{eff.set_option}</span></div>))}</div>
-                          </div>
-                        )) : <NoDataAlert message="현재 세트 효과 없음" />}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-[#1e2028] p-6 rounded-2xl border border-slate-800 shadow-lg grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {safeArray(activeData?.setEffect?.set_effect).map((setInfo, idx) => (
-                      <div key={idx} className="bg-[#181a20] rounded-xl border border-slate-700/50 p-5">
-                        <div className="flex justify-between items-center mb-3 border-b border-slate-700 pb-2"><h4 className="font-bold text-slate-200 text-sm">{setInfo.set_name}</h4><span className="bg-orange-500/20 text-orange-400 text-xs px-2 py-1 rounded-lg border border-orange-500/30">{setInfo.total_set_count}세트 적용</span></div>
-                        <div className="space-y-1 text-xs text-slate-400">
-                          {safeArray(setInfo.set_effect_info).map((eff, i) => (<div key={i} className={`p-2 rounded ${eff.set_count <= setInfo.total_set_count ? 'bg-green-900/10 text-green-300' : 'opacity-50'}`}><span className="font-semibold block mb-0.5">{eff.set_count}세트 효과</span><span className="whitespace-pre-wrap">{eff.set_option}</span></div>))}
-                        </div>
-                      </div>
-                    ))}
-                  </div> 
-                )
-              )}
+              {equipSubTab === 'symbol' && ( <div className="bg-[#1e2028] p-6 rounded-2xl border border-slate-800 shadow-lg"><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{safeArray(activeData?.symbols?.symbol).map((sym, idx) => (<div key={idx} className="bg-[#181a20] p-4 rounded-xl flex items-center justify-between border border-slate-700/50"><div className="flex items-center gap-4"><img src={sym.symbol_icon} alt="symbol" className="w-12 h-12 object-contain" /><div><div className="text-sm font-semibold text-slate-200">{sym.symbol_name}</div><div className="text-xs text-slate-400 mt-0.5">성장: {sym.symbol_growth_count}/{sym.symbol_require_growth_count}</div></div></div><div className="text-right"><div className="text-sm font-bold text-orange-400">Lv. {sym.symbol_level}</div><div className="text-xs text-blue-300 mt-0.5">포스 +{sym.symbol_force}</div></div></div>))}</div></div> )}
+              {equipSubTab === 'set' && ( <div className="bg-[#1e2028] p-6 rounded-2xl border border-slate-800 shadow-lg grid grid-cols-1 lg:grid-cols-2 gap-6">{safeArray(activeData?.setEffect?.set_effect).map((setInfo, idx) => (<div key={idx} className="bg-[#181a20] rounded-xl border border-slate-700/50 p-5"><div className="flex justify-between items-center mb-3 border-b border-slate-700 pb-2"><h4 className="font-bold text-slate-200 text-sm">{setInfo.set_name}</h4><span className="bg-orange-500/20 text-orange-400 text-xs px-2 py-1 rounded-lg border border-orange-500/30">{setInfo.total_set_count}세트 적용</span></div><div className="space-y-1 text-xs text-slate-400">{safeArray(setInfo.set_effect_info).map((eff, i) => (<div key={i} className={`p-2 rounded ${eff.set_count <= setInfo.total_set_count ? 'bg-green-900/10 text-green-300' : 'opacity-50'}`}><span className="font-semibold block mb-0.5">{eff.set_count}세트 효과</span><span className="whitespace-pre-wrap">{eff.set_option}</span></div>))}</div></div>))}</div> )}
             </div>
           )}
 
-          {}
           {/* ======================= SKILLS TAB ======================= */}
           {activeTab === 'skills' && (
             <div className="space-y-6">
-              <div className="flex space-x-2 border-b border-slate-800 pb-2 overflow-x-auto custom-scrollbar">
+              <div className="flex space-x-2 border-b border-slate-800 pb-2">
                 {[{ id: 'hexa', label: '6차 (HEXA)' }, { id: 'vmatrix', label: '5차 (V 매트릭스)' }, { id: 'basic', label: '1~4차/하이퍼' }, { id: 'link', label: '링크 스킬' }].map(st => (
-                  <button key={st.id} onClick={() => setSkillSubTab(st.id)} className={`px-4 py-2 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${skillSubTab === st.id ? 'bg-orange-600 text-white' : 'bg-[#181a20] text-slate-400 hover:bg-slate-700'}`}>{st.label}</button>
+                  <button key={st.id} onClick={() => setSkillSubTab(st.id)} className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors ${skillSubTab === st.id ? 'bg-orange-600 text-white' : 'bg-[#181a20] text-slate-400 hover:bg-slate-700'}`}>{st.label}</button>
                 ))}
               </div>
-
-              {/* [UI 개편] HEXA 코어 렌더링 */}
-              {skillSubTab === 'hexa' && (() => {
-                 const s4Hexa = safeArray(currentData?.hexa?.character_hexa_core_equipment);
-                 const s3Hexa = isCompareMode ? safeArray(currentData3?.hexa?.character_hexa_core_equipment) : [];
-                 const s4Cost = getTotalHexaCost(s4Hexa);
-                 const s3Cost = isCompareMode ? getTotalHexaCost(s3Hexa) : { erda: 0, piece: 0 };
-                 
-                 const hexaCoresMap = new Map();
-                 s4Hexa.forEach(i => hexaCoresMap.set(i.hexa_core_name, i.hexa_core_name));
-                 s3Hexa.forEach(i => { if(!hexaCoresMap.has(i.hexa_core_name)) hexaCoresMap.set(i.hexa_core_name, i.hexa_core_name); });
-                 const allHexa = Array.from(hexaCoresMap.values());
-
-                 return (
-                   <div className="space-y-6">
-                     {/* 누적 비용 요약 카드 */}
-                     {isCompareMode ? (
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                         <div className="bg-[#1e2028] p-4 rounded-xl border border-slate-800 shadow-md flex items-center justify-between">
-                           <div>
-                             <div className="text-[10px] text-blue-400 font-bold mb-1">{LBL_PAST} 총 소모량</div>
-                             <div className="flex items-center gap-4">
-                               <div><span className="text-[10px] text-slate-500 block">솔 에르다 기운</span><span className="text-sm font-black text-purple-300">{s3Cost.erda.toLocaleString()}</span></div>
-                               <div><span className="text-[10px] text-slate-500 block">솔 에르다 조각</span><span className="text-sm font-black text-purple-300">{s3Cost.piece.toLocaleString()}</span></div>
-                             </div>
-                           </div>
-                         </div>
-                         <div className="bg-[#1e2028] p-4 rounded-xl border border-slate-800 shadow-md flex items-center justify-between">
-                           <div>
-                             <div className="text-[10px] text-orange-400 font-bold mb-1">{LBL_NOW} 총 소모량</div>
-                             <div className="flex items-center gap-4">
-                               <div><span className="text-[10px] text-slate-500 block">솔 에르다 기운</span><span className="text-sm font-black text-purple-400">{s4Cost.erda.toLocaleString()}</span></div>
-                               <div><span className="text-[10px] text-slate-500 block">솔 에르다 조각</span><span className="text-sm font-black text-purple-400">{s4Cost.piece.toLocaleString()}</span></div>
-                             </div>
-                           </div>
-                           <div className="text-right">
-                             <div className="text-[10px] text-slate-500 mb-0.5">증감 (조각 기준)</div>
-                             <div className={`text-xs font-bold ${s4Cost.piece >= s3Cost.piece ? 'text-green-400' : 'text-red-400'}`}>{s4Cost.piece >= s3Cost.piece ? '+' : ''}{(s4Cost.piece - s3Cost.piece).toLocaleString()}</div>
-                           </div>
-                         </div>
-                       </div>
-                     ) : (
-                       <div className="bg-[#1e2028] p-5 rounded-xl border border-slate-800 shadow-md inline-flex items-center gap-8">
-                         <div>
-                           <div className="text-xs text-orange-400 font-bold mb-2">총 소모량 (누적 환산)</div>
-                           <div className="flex items-center gap-6">
-                             <div><span className="text-[10px] text-slate-500 block mb-0.5">솔 에르다 기운</span><span className="text-lg font-black text-purple-400">{s4Cost.erda.toLocaleString()}</span></div>
-                             <div><span className="text-[10px] text-slate-500 block mb-0.5">솔 에르다 조각</span><span className="text-lg font-black text-purple-400">{s4Cost.piece.toLocaleString()}</span></div>
-                           </div>
-                         </div>
-                       </div>
-                     )}
-
-                     {allHexa.length === 0 ? <NoDataAlert message="HEXA 매트릭스 데이터 없음" /> : (
-                       <div className={`grid grid-cols-1 ${isCompareMode ? 'lg:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4`}>
-                         {allHexa.map((coreName, idx) => {
-                           const core4 = s4Hexa.find(c => c.hexa_core_name === coreName);
-                           const core3 = s3Hexa.find(c => c.hexa_core_name === coreName);
-                           const typeLabel = (core4 || core3).hexa_core_type;
-                           
-                           return (
-                             <div key={idx} className="bg-[#1e2028] rounded-xl border border-slate-800 flex flex-col shadow-lg overflow-hidden">
-                               <div className="bg-[#111318] px-4 py-2 border-b border-slate-800 flex justify-center items-center">
-                                 <span className="text-[9px] font-black tracking-wider uppercase px-2 py-0.5 rounded bg-slate-900 text-purple-400 border border-purple-500/20">{typeLabel}</span>
-                               </div>
-                               {isCompareMode ? (
-                                 <div className="flex divide-x divide-slate-800 h-full">
-                                   <div className="flex-1 p-4 bg-slate-900/20 opacity-80 flex flex-col items-center justify-center text-center relative">
-                                     <div className="text-[9px] font-bold text-blue-400 mb-2 absolute top-2 left-1/2 -translate-x-1/2 whitespace-nowrap">{LBL_PAST}</div>
-                                     {core3 ? (
-                                       <div className="mt-5 flex flex-col items-center w-full">
-                                         <div className="text-[10px] text-slate-300 font-bold mb-2 break-keep-all">{core3.hexa_core_name}</div>
-                                         <div className="text-lg font-black text-white italic mb-1">Lv.{core3.hexa_core_level}</div>
-                                         <div className="text-[10px] text-slate-400 flex flex-col gap-0.5">
-                                           <span>누적 기운: {calculateHexaCost(core3.hexa_core_type, core3.hexa_core_level, coreName).erda}개</span>
-                                           <span>누적 조각: {calculateHexaCost(core3.hexa_core_type, core3.hexa_core_level, coreName).piece}개</span>
-                                         </div>
-                                       </div>
-                                     ) : <div className="text-xs text-center text-slate-600 mt-6">미활성화</div>}
-                                   </div>
-                                   <div className="flex-1 p-4 bg-slate-900/40 flex flex-col items-center justify-center text-center relative">
-                                     <div className="text-[9px] font-bold text-orange-400 mb-2 absolute top-2 left-1/2 -translate-x-1/2 whitespace-nowrap">{LBL_NOW}</div>
-                                     {core4 ? (
-                                       <div className="mt-5 flex flex-col items-center w-full">
-                                         <div className="text-[10px] text-slate-300 font-bold mb-2 break-keep-all">{core4.hexa_core_name}</div>
-                                         <div className="text-lg font-black text-white italic mb-1">Lv.{core4.hexa_core_level}</div>
-                                         <div className="text-[10px] text-slate-400 flex flex-col gap-0.5">
-                                           <span>누적 기운: {calculateHexaCost(core4.hexa_core_type, core4.hexa_core_level, coreName).erda}개</span>
-                                           <span>누적 조각: {calculateHexaCost(core4.hexa_core_type, core4.hexa_core_level, coreName).piece}개</span>
-                                         </div>
-                                       </div>
-                                     ) : <div className="text-xs text-center text-slate-600 mt-6">미활성화</div>}
-                                   </div>
-                                 </div>
-                               ) : (
-                                 <div className="p-5 flex flex-col items-center justify-center text-center relative overflow-hidden">
-                                   <div className="absolute -right-10 -bottom-10 w-32 h-32 bg-purple-500/5 rounded-full blur-2xl pointer-events-none"></div>
-                                   <div className="text-[10px] font-bold text-slate-300 mb-2 z-10">{core4.hexa_core_name}</div>
-                                   <div className="text-2xl font-black text-white italic drop-shadow-md mb-3 z-10">Lv.{core4.hexa_core_level}</div>
-                                   <div className="text-xs text-slate-400 flex justify-center gap-4 z-10">
-                                      <span>누적 기운: {calculateHexaCost(core4.hexa_core_type, core4.hexa_core_level, coreName).erda}</span>
-                                      <span>누적 조각: {calculateHexaCost(core4.hexa_core_type, core4.hexa_core_level, coreName).piece}</span>
-                                   </div>
-                                 </div>
-                               )}
-                             </div>
-                           )
-                         })}
-                       </div>
-                     )}
-                   </div>
-                 );
-              })()}
-
-              {/* [UI 개편] V매트릭스 스킬 렌더링 및 V Point 환산 */}
-              {skillSubTab === 'vmatrix' && (() => {
-                 const getCoreOrder = (type) => {
-                   if (type.includes('직업')) return 1;
-                   if (type.includes('강화')) return 2;
-                   if (type.includes('공용')) return 3;
-                   return 4;
-                 };
-
-                 const s4VRaw = safeArray(activeData?.vmatrix?.character_v_core_equipment || currentData?.vmatrix?.character_v_core_equipment);
-                 const s4V = s4VRaw.map(normalizeVCore).sort((a, b) => {
-                   const orderA = getCoreOrder(a.type);
-                   const orderB = getCoreOrder(b.type);
-                   if (orderA !== orderB) return orderA - orderB;
-                   return a.name.localeCompare(b.name);
-                 });
-
-                 const s3VRaw = isCompareMode ? safeArray(currentData3?.vmatrix?.character_v_core_equipment) : [];
-                 const s3V = s3VRaw.map(normalizeVCore).sort((a, b) => {
-                   const orderA = getCoreOrder(a.type);
-                   const orderB = getCoreOrder(b.type);
-                   if (orderA !== orderB) return orderA - orderB;
-                   return a.name.localeCompare(b.name);
-                 });
-
-                 const s4Point = getTotalVPoints(s4VRaw);
-                 const s3Point = isCompareMode ? getTotalVPoints(s3VRaw) : 0;
-
-                 // V 매트릭스 비교 모드 그룹화 (순서: 직업 -> 강화 -> 공용)
-                 // 1. 직업 코어 (이름 분할)
-                 const s3Job = s3V.filter(c => c.type.includes('직업'));
-                 const s4Job = s4V.filter(c => c.type.includes('직업'));
-                 const jobCores = [];
-                 const maxJobLen = Math.max(s3Job.length, s4Job.length);
-                 for(let i=0; i<maxJobLen; i++) {
-                   jobCores.push({ isSplit: true, type: '직업 코어', s3: s3Job[i] || null, s4: s4Job[i] || null });
-                 }
-
-                 // 2. 강화 코어 (이름 분할)
-                 const s3Enhance = s3V.filter(c => c.type.includes('강화'));
-                 const s4Enhance = s4V.filter(c => c.type.includes('강화'));
-                 const enhanceCores = [];
-                 const maxEnhanceLen = Math.max(s3Enhance.length, s4Enhance.length);
-                 for(let i=0; i<maxEnhanceLen; i++) {
-                   enhanceCores.push({ isSplit: true, type: '강화 코어', s3: s3Enhance[i] || null, s4: s4Enhance[i] || null });
-                 }
-
-                 // 3. 공용 코어 (이름 중앙 통합)
-                 const commonMap = new Map();
-                 s3V.filter(c => c.type.includes('공용')).forEach(c => {
-                   if(!commonMap.has(c.name)) commonMap.set(c.name, { s3: c, s4: null, name: c.name, type: c.type, isSplit: false });
-                 });
-                 s4V.filter(c => c.type.includes('공용')).forEach(c => {
-                   if(!commonMap.has(c.name)) commonMap.set(c.name, { s3: null, s4: c, name: c.name, type: c.type, isSplit: false });
-                   else commonMap.get(c.name).s4 = c;
-                 });
-                 const commonCores = Array.from(commonMap.values());
-
-                 const combinedVCores = [...jobCores, ...enhanceCores, ...commonCores];
-
-                 return (
-                   <div className="space-y-6">
-                     {isCompareMode ? (
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                         <div className="bg-[#1e2028] p-4 rounded-xl border border-slate-800 shadow-md flex justify-between items-center">
-                           <div className="text-[10px] text-blue-400 font-bold">{LBL_PAST} V 코어 파편</div>
-                           <div className="text-lg font-black text-blue-300">{s3Point.toLocaleString()} <span className="text-[10px] font-normal text-slate-500">Point</span></div>
-                         </div>
-                         <div className="bg-[#1e2028] p-4 rounded-xl border border-slate-800 shadow-md flex justify-between items-center">
-                           <div>
-                             <div className="text-[10px] text-orange-400 font-bold">{LBL_NOW} V 코어 파편</div>
-                             <div className={`text-[10px] ${s4Point >= s3Point ? 'text-green-400' : 'text-red-400'}`}>증감: {s4Point >= s3Point ? '+' : ''}{(s4Point - s3Point).toLocaleString()}</div>
-                           </div>
-                           <div className="text-lg font-black text-orange-400">{s4Point.toLocaleString()} <span className="text-[10px] font-normal text-slate-500">Point</span></div>
-                         </div>
-                       </div>
-                     ) : (
-                       <div className="bg-[#1e2028] p-5 rounded-xl border border-slate-800 shadow-md inline-flex items-center gap-6">
-                         <div className="text-xs text-orange-400 font-bold">장착 코어 총 V 포인트 환산</div>
-                         <div className="text-xl font-black text-white">{s4Point.toLocaleString()} <span className="text-xs font-normal text-slate-500">Point</span></div>
-                       </div>
-                     )}
-
-                     {isCompareMode ? (
-                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                         {combinedVCores.length > 0 ? combinedVCores.map((item, idx) => (
-                           <div key={idx} className="bg-[#1e2028] rounded-xl border border-slate-800 flex flex-col shadow-lg overflow-hidden">
-                             {item.isSplit ? (
-                               <div className="bg-[#111318] border-b border-slate-800 flex relative divide-x divide-slate-800">
-                                 <div className="flex-1 px-3 py-2 flex items-center justify-center min-w-0">
-                                   <span className="text-[10px] font-bold text-slate-300 truncate" title={item.s3?.name}>{item.s3?.name || '-'}</span>
-                                 </div>
-                                 <div className="flex-1 px-3 py-2 flex items-center justify-center min-w-0">
-                                   <span className="text-[10px] font-bold text-slate-300 truncate" title={item.s4?.name}>{item.s4?.name || '-'}</span>
-                                 </div>
-                                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#111318] px-1 py-0.5 rounded">
-                                   <span className="text-[9px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded bg-slate-900 text-blue-400 border border-blue-500/20">{item.type}</span>
-                                 </div>
-                               </div>
-                             ) : (
-                               <div className="bg-[#111318] px-4 py-2 border-b border-slate-800 flex justify-center items-center relative">
-                                 <span className="text-xs font-bold text-slate-200 truncate">{item.name}</span>
-                                 <span className="absolute right-4 text-[9px] font-black tracking-wider uppercase px-2 py-0.5 rounded bg-slate-900 text-blue-400 border border-blue-500/20">{item.type}</span>
-                               </div>
-                             )}
-                             <div className="flex divide-x divide-slate-800 h-full">
-                               <div className="flex-1 p-4 bg-slate-900/20 opacity-80 flex flex-col items-center justify-center text-center relative">
-                                 <div className="text-[9px] font-bold text-blue-400 mb-2 absolute top-2 left-1/2 -translate-x-1/2 whitespace-nowrap">{LBL_PAST}</div>
-                                 {item.s3 ? (
-                                   <div className="mt-5 flex flex-col items-center w-full">
-                                     <img src={item.s3.icon} alt="vcore" className="w-10 h-10 object-contain mb-2" />
-                                     <div className="text-lg font-black text-white italic mb-1">Lv.{item.s3.level}</div>
-                                     <div className="text-[10px] text-slate-400">누적: {calculateVPoint(item.s3.type, item.s3.level)} Point</div>
-                                   </div>
-                                 ) : <div className="text-xs text-slate-600 mt-6">미장착</div>}
-                               </div>
-                               <div className="flex-1 p-4 bg-slate-900/40 flex flex-col items-center justify-center text-center relative">
-                                 <div className="text-[9px] font-bold text-orange-400 mb-2 absolute top-2 left-1/2 -translate-x-1/2 whitespace-nowrap">{LBL_NOW}</div>
-                                 {item.s4 ? (
-                                   <div className="mt-5 flex flex-col items-center w-full">
-                                     <img src={item.s4.icon} alt="vcore" className="w-10 h-10 object-contain mb-2" />
-                                     <div className="text-lg font-black text-white italic mb-1">Lv.{item.s4.level}</div>
-                                     <div className="text-[10px] text-slate-400">누적: {calculateVPoint(item.s4.type, item.s4.level)} Point</div>
-                                   </div>
-                                 ) : <div className="text-xs text-slate-600 mt-6">미장착</div>}
-                               </div>
-                             </div>
-                           </div>
-                         )) : <div className="col-span-full"><NoDataAlert message="비교할 V 매트릭스 데이터 없음" /></div>}
-                       </div>
-                     ) : (
-                       <div className="bg-[#1e2028] p-6 rounded-2xl border border-slate-800 shadow-lg grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                         {s4V.length > 0 ? s4V.map((core, idx) => (
-                           <div key={idx} className="bg-[#181a20] p-4 rounded-xl border border-slate-700/50 flex flex-col h-full relative overflow-hidden group items-center text-center">
-                             <div className="absolute -right-10 -top-10 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 pointer-events-none"></div>
-                             <div className="w-full flex justify-between items-center mb-3 relative z-10">
-                               <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-[#181a20] text-blue-400 border border-blue-500/20">{core.type}</span>
-                               <span className="text-[9px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">{calculateVPoint(core.type, core.level)}p</span>
-                             </div>
-                             <img src={core.icon} alt="vcore" className="w-12 h-12 object-contain relative z-10 mb-2" />
-                             <div className="text-xl font-black text-white italic drop-shadow-md relative z-10 mb-2">Lv.{core.level}</div>
-                             <div className="relative z-10 flex-1 flex items-start justify-center w-full mt-1">
-                               <h4 className="text-xs font-bold text-slate-200 leading-tight break-keep-all">{core.name}</h4>
-                             </div>
-                           </div>
-                         )) : <div className="col-span-full"><NoDataAlert message="V 매트릭스 장착 코어 없음" /></div>}
-                       </div>
-                     )}
-                   </div>
-                 );
-              })()}
-
+              {skillSubTab === 'hexa' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {safeArray(activeData?.hexa?.character_hexa_core_equipment).length > 0 ? (
+                    safeArray(activeData.hexa.character_hexa_core_equipment).map((core, idx) => (
+                      <div key={idx} className="bg-[#1e2028] p-5 rounded-xl border border-slate-700/50 flex flex-col h-full relative overflow-hidden group">
+                        <div className="absolute -right-10 -top-10 w-32 h-32 bg-purple-500/5 rounded-full blur-2xl group-hover:bg-purple-500/10"></div>
+                        <div className="relative z-10 flex justify-between items-start mb-3">
+                          <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-1 rounded bg-[#181a20] text-purple-400 border border-purple-500/20">{core.hexa_core_type}</span>
+                          <span className="text-xl font-black text-white italic drop-shadow-md">Lv.{core.hexa_core_level}</span>
+                        </div>
+                        <div className="relative z-10 flex-1 flex items-end"><h4 className="text-sm font-bold text-slate-200 leading-tight">{core.hexa_core_name}</h4></div>
+                      </div>
+                    ))
+                  ) : <div className="col-span-full"><NoDataAlert message="HEXA 매트릭스 데이터 없음" /></div>}
+                </div>
+              )}
+              {skillSubTab === 'vmatrix' && (
+                <div className="bg-[#1e2028] p-6 rounded-2xl border border-slate-800 shadow-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {safeArray(activeData?.vmatrix?.character_v_core_equipment).length > 0 ? (
+                    safeArray(activeData.vmatrix.character_v_core_equipment).map((core, idx) => (
+                      <div key={idx} className="bg-[#181a20] p-4 rounded-xl border border-slate-700/50 flex gap-4 items-center">
+                        <img src={core.v_core_icon} alt="vcore" className="w-12 h-12 object-contain" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[10px] text-blue-400 mb-0.5">{core.v_core_type}</div>
+                          <div className="text-sm font-bold text-slate-200 truncate" title={core.v_core_name}>{core.v_core_name}</div>
+                          <div className="text-xs text-slate-400 mt-1">Lv.{core.v_core_level}</div>
+                        </div>
+                      </div>
+                    ))
+                  ) : <div className="col-span-full"><NoDataAlert message="V 매트릭스 장착 코어 없음" /></div>}
+                </div>
+              )}
               {skillSubTab === 'basic' && (
                 <div className="bg-[#1e2028] p-6 rounded-2xl border border-slate-800 shadow-lg max-h-[600px] overflow-y-auto custom-scrollbar">
                   {activeData?.skills ? (
@@ -1564,12 +1079,11 @@ export default function App() {
             </div>
           )}
 
-          {}
           {/* ======================= UNION / LOGS TAB ======================= */}
           {activeTab === 'union' && (
             <div className="space-y-6">
               <div className="flex space-x-2 border-b border-slate-800 pb-2 overflow-x-auto custom-scrollbar">
-                {[ { id: 'compare_rng', label: '⚔️ 시즌 운 대결' }, { id: 'summary_starforce', label: '★ 강화 통계' }, { id: 'summary_cube', label: '🎲 큐브/잠재 통계' }, { id: 'exp', label: '경험치 이력 비교' }, { id: 'logs', label: '전체 로그' }, { id: 'rank', label: '랭킹 및 무릉' } ].map(st => {
+                {[ { id: 'compare_rng', label: '⚔️ 시즌 운 대결' }, { id: 'summary_starforce', label: '★ 강화 통계' }, { id: 'summary_cube', label: '🎲 큐브/잠재 통계' }, { id: 'exp', label: '경험치 이력' }, { id: 'logs', label: '전체 로그' }, { id: 'rank', label: '랭킹 및 무릉' } ].map(st => {
                   if(st.id === 'compare_rng' && !isCompareMode) return null;
                   return (
                     <button key={st.id} onClick={() => setLogSubTab(st.id)} className={`px-4 py-2 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${logSubTab === st.id ? 'bg-orange-600 text-white' : 'bg-[#181a20] text-slate-400 hover:bg-slate-700'}`}>{st.label}</button>
@@ -1679,84 +1193,30 @@ export default function App() {
                 </div>
               )}
 
-              {/* [UI 개선] 경험치 이력 비교 모드 지원 */}
               {logSubTab === 'exp' && (
-                isCompareMode ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="bg-[#1c1d21] rounded-xl border border-slate-700 overflow-hidden shadow-inner flex flex-col">
-                      <div className="text-xs font-bold text-blue-400 bg-slate-900/80 p-3 text-center border-b border-slate-700">{LBL_PAST} 경험치 이력</div>
-                      {expHistory3.length > 0 ? (
-                        <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
-                          <table className="w-full text-left text-[10px] text-slate-300 border-collapse whitespace-nowrap">
-                            <thead className="bg-[#26272b] text-slate-200 border-b border-slate-700 sticky top-0 z-10 shadow-sm">
-                              <tr><th className="px-3 py-2 font-semibold">날짜</th><th className="px-3 py-2 font-semibold">레벨</th><th className="px-3 py-2 font-semibold">경험치 %</th><th className="px-3 py-2 font-semibold">상승 %</th></tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-700/50">
-                              {expHistory3.map((exp, idx) => (
-                                <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
-                                  <td className="px-3 py-2">{exp.date.substring(5)} ({exp.dayOfWeek})</td><td className="px-3 py-2">{exp.level}</td><td className="px-3 py-2">{exp.expRate.toFixed(3)}%</td>
-                                  <td className="px-3 py-2 font-medium">
-                                    {exp.isFirst ? <span className="text-slate-500">-</span> : (
-                                      <div className="flex items-center"><span className={exp.gainedRate > 0 ? "text-slate-100" : "text-slate-400"}>{exp.gainedRate > 0 ? '+' : ''}{Number(exp.gainedRate.toFixed(3))}%</span>{exp.isLevelUp && <span className="ml-1 text-[8px] bg-purple-500/20 text-purple-400 px-1 rounded">UP</span>}</div>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : <NoDataAlert message="과거 경험치 내역 없음" />}
+                <div className="bg-[#1c1d21] rounded-xl border border-slate-700 overflow-hidden shadow-inner">
+                  {generatedExpHistory.length > 0 ? (
+                    <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
+                      <table className="w-full text-left text-sm text-slate-300 border-collapse whitespace-nowrap">
+                        <thead className="bg-[#26272b] text-slate-200 border-b border-slate-700 sticky top-0 z-10 shadow-sm">
+                          <tr><th className="px-5 py-3.5 font-semibold tracking-wide text-xs">날짜</th><th className="px-5 py-3.5 font-semibold tracking-wide text-xs">요일</th><th className="px-5 py-3.5 font-semibold tracking-wide text-xs">레벨</th><th className="px-5 py-3.5 font-semibold tracking-wide text-xs">경험치</th><th className="px-5 py-3.5 font-semibold tracking-wide text-xs">경험치 %</th><th className="px-5 py-3.5 font-semibold tracking-wide text-xs">상승 경험치 %</th></tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-700/50">
+                          {generatedExpHistory.map((exp, idx) => (
+                            <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                              <td className="px-5 py-3">{exp.date}</td><td className="px-5 py-3">{exp.dayOfWeek}</td><td className="px-5 py-3">{exp.level}</td><td className="px-5 py-3">{exp.exp.toLocaleString()}</td><td className="px-5 py-3">{exp.expRate.toFixed(3)}%</td>
+                              <td className="px-5 py-3 font-medium">
+                                {exp.isFirst ? <span className="text-slate-500">-</span> : (
+                                  <div className="flex items-center"><span className={exp.gainedRate > 0 ? "text-slate-100" : "text-slate-400"}>{exp.gainedRate > 0 ? '+' : ''}{Number(exp.gainedRate.toFixed(3))}%</span>{exp.isLevelUp && <span className="ml-2 text-[10px] bg-purple-500/20 border border-purple-500/30 text-purple-400 px-1.5 py-0.5 rounded">LEVEL UP</span>}</div>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                    <div className="bg-[#1c1d21] rounded-xl border border-slate-700 overflow-hidden shadow-inner flex flex-col">
-                      <div className="text-xs font-bold text-orange-400 bg-slate-900/80 p-3 text-center border-b border-slate-700">{LBL_NOW} 경험치 이력</div>
-                      {expHistory4.length > 0 ? (
-                        <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
-                          <table className="w-full text-left text-[10px] text-slate-300 border-collapse whitespace-nowrap">
-                            <thead className="bg-[#26272b] text-slate-200 border-b border-slate-700 sticky top-0 z-10 shadow-sm">
-                              <tr><th className="px-3 py-2 font-semibold">날짜</th><th className="px-3 py-2 font-semibold">레벨</th><th className="px-3 py-2 font-semibold">경험치 %</th><th className="px-3 py-2 font-semibold">상승 %</th></tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-700/50">
-                              {expHistory4.map((exp, idx) => (
-                                <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
-                                  <td className="px-3 py-2">{exp.date.substring(5)} ({exp.dayOfWeek})</td><td className="px-3 py-2">{exp.level}</td><td className="px-3 py-2">{exp.expRate.toFixed(3)}%</td>
-                                  <td className="px-3 py-2 font-medium">
-                                    {exp.isFirst ? <span className="text-slate-500">-</span> : (
-                                      <div className="flex items-center"><span className={exp.gainedRate > 0 ? "text-slate-100" : "text-slate-400"}>{exp.gainedRate > 0 ? '+' : ''}{Number(exp.gainedRate.toFixed(3))}%</span>{exp.isLevelUp && <span className="ml-1 text-[8px] bg-purple-500/20 text-purple-400 px-1 rounded">UP</span>}</div>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : <NoDataAlert message="현재 경험치 내역 없음" />}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-[#1c1d21] rounded-xl border border-slate-700 overflow-hidden shadow-inner">
-                    {expHistory4.length > 0 ? (
-                      <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
-                        <table className="w-full text-left text-sm text-slate-300 border-collapse whitespace-nowrap">
-                          <thead className="bg-[#26272b] text-slate-200 border-b border-slate-700 sticky top-0 z-10 shadow-sm">
-                            <tr><th className="px-5 py-3.5 font-semibold tracking-wide text-xs">날짜</th><th className="px-5 py-3.5 font-semibold tracking-wide text-xs">요일</th><th className="px-5 py-3.5 font-semibold tracking-wide text-xs">레벨</th><th className="px-5 py-3.5 font-semibold tracking-wide text-xs">경험치</th><th className="px-5 py-3.5 font-semibold tracking-wide text-xs">경험치 %</th><th className="px-5 py-3.5 font-semibold tracking-wide text-xs">상승 경험치 %</th></tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-700/50">
-                            {expHistory4.map((exp, idx) => (
-                              <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
-                                <td className="px-5 py-3">{exp.date}</td><td className="px-5 py-3">{exp.dayOfWeek}</td><td className="px-5 py-3">{exp.level}</td><td className="px-5 py-3">{exp.exp.toLocaleString()}</td><td className="px-5 py-3">{exp.expRate.toFixed(3)}%</td>
-                                <td className="px-5 py-3 font-medium">
-                                  {exp.isFirst ? <span className="text-slate-500">-</span> : (
-                                    <div className="flex items-center"><span className={exp.gainedRate > 0 ? "text-slate-100" : "text-slate-400"}>{exp.gainedRate > 0 ? '+' : ''}{Number(exp.gainedRate.toFixed(3))}%</span>{exp.isLevelUp && <span className="ml-2 text-[10px] bg-purple-500/20 border border-purple-500/30 text-purple-400 px-1.5 py-0.5 rounded">LEVEL UP</span>}</div>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : <NoDataAlert message="경험치 변동 내역이 없습니다." />}
-                  </div>
-                )
+                  ) : <NoDataAlert message="경험치 변동 내역이 없습니다." />}
+                </div>
               )}
 
               {logSubTab === 'logs' && (
@@ -1831,8 +1291,7 @@ export default function App() {
                     <div className="grid grid-cols-2 gap-4">
                       {[
                         { name: '종합 랭킹', data: activeData?.rankingOverall?.[0] },
-                        // 유니온 레벨이 0보다 클 때만 유니온 랭킹 표시 (챌린저스 서버 대응)
-                        ...(activeData?.union?.union_level > 0 ? [{ name: '유니온 랭킹', data: activeData?.rankingUnion?.[0] }] : []),
+                        { name: '유니온 랭킹', data: activeData?.rankingUnion?.[0] },
                         { name: '무릉도장 랭킹', data: activeData?.rankingDojang?.[0] },
                         { name: '업적 랭킹', data: activeData?.rankingAchievement?.[0] }
                       ].map((rk, idx) => (
